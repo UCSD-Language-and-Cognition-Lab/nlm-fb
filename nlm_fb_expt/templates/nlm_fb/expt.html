@@ -1,0 +1,43 @@
+{% extends 'nlm_fb/base.html' %}
+
+{% block head %}
+
+<!-- reCAPTCHA -->
+ <script src="https://www.google.com/recaptcha/api.js?render=6Lc8nMwZAAAAAD9VUlj6EX69mgSSJ9ODDVPqrzJe"></script>
+
+{% endblock %}
+
+{% block content %}
+
+<div id='expt-container'>
+
+</div>
+
+<!-- Render django data as JSON scripts -->
+{{ item_data | json_script:"item_data"}}
+{{ conf | json_script:"conf"}}
+
+<script>
+
+// Load Stimuli Data
+const item_data = JSON.parse(document.getElementById('item_data')
+    .textContent);
+
+// Load Config Data
+const conf = JSON.parse(document.getElementById('conf')
+    .textContent);
+
+const module_url = "nlm_fb";
+
+</script>
+
+<!-- HTML Templates -->
+{% include 'nlm_fb/demographics.html' with handedness=0 languages=0 vision=1 conditions=1 %}
+
+<!-- Local JS -->
+<script src="/static/nlm_fb/expt.js"></script>
+<script src="/static/nlm_fb/nlm_fb.js"></script>
+<script src="/static/nlm_fb/demographics.js"></script>
+
+
+{% endblock %}

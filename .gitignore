@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__
+*.json
+*/__pycache__
+secrets.py
+.Rproj.user
+*.RData
+*.Rhistory
+stats/stats.Rproj
+data/results/
+data/raw/
+data/mturk/
+todo.txt
+scripts/

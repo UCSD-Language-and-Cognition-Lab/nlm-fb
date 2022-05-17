@@ -1,0 +1,22 @@
+{% extends 'nlm_fb/base.html' %}
+
+{% block head %}
+
+<!-- reCAPTCHA -->
+ <script src="https://www.google.com/recaptcha/api.js?render=6Lc8nMwZAAAAAD9VUlj6EX69mgSSJ9ODDVPqrzJe"></script>
+
+{% endblock %}
+
+{% block content %}
+
+<div id='expt-container'>
+    <div class='instructions-container'>
+        <h2 class='instructions-header'>CAPTCHA FAILED</h2>
+
+        <p class='instructions'>Unfortunately your session has been terminated due to suspicious behaviour. If you think this has happened in error, please contact the requester directly.</p>
+    </div>
+
+</div>
+
+
+{% endblock %}

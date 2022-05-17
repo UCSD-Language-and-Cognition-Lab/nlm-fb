@@ -1,0 +1,81 @@
+
+Expt setup
+----------
+
+Stims
+    - Create attn questions [X]
+
+Models [X]
+    - Ppt [X]
+        - mturk code [X]
+    - trial [X]
+        - item_type [X]
+            - critical [X]
+            - attention_check [X]
+
+Views
+    - Init ppt [X]
+    - load stim(s) [X]
+        - get arg 4 cond [X]
+    - expt [X]
+    - store data [X]
+
+Templates
+    - Expt [X]
+
+Js
+    - Instructions [X]
+    - passage [X]
+        - justify [X]
+    - fill in the blank [X]
+        - auto-focus [X]
+    - comp questions [X]
+    - debrief [X]
+    - exit screen [X]
+    - storage [X]
+
+Test
+    - Runthrough [X]
+    - Test storage [X]
+    - Test randomization
+
+Push
+    - Create git org [X]
+    - Invite lab [X]
+    - Push proj [X]
+    - Send email [X]
+
+------
+Mturk stuff
+    - integrate codes [X]
+    - get ppt ids [X]
+    - Create conditions [X]
+    - fix exit screen [X]
+    - save api call responses to notes [X]
+
+Create other attention questions [X]
+    - 1 for 30 and join [X]
+
+
+==============
+Pilot checks
+
+- WorkerIds coming through [O]
+- done task qualification granted [O]
+- randomization [X]
+
+
+==============
+Pilot updates
+
+- store asd/dyslexia [X]
+- ask for workerId [X]
+    - don't try to grant credit [X]
+
+Questions
+---------
+
+
+
+
+

@@ -1,0 +1,321 @@
+---
+title: "Do distributional semantics explain false belief sensitivity?"
+author: "Sean Trott, Cameron Jones, James Michaelov, Tyler Chang, Benjamin Bergen"
+date: "2/28/2022"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    # code_folding: hide
+  pdf_document: default
+  word_document:
+    toc: yes
+---
+
+# Setup
+
+Load and preprocess data
+
+```{r include=FALSE}
+library(tidyverse)
+library(lme4)
+library(ggridges)
+library(broom.mixed)
+library(lmerTest)
+
+source("utils.R")
+source("preprocess.R")
+```
+
+
+# NLM Analysis
+
+## Descriptive statistics 
+
+Overall GPT-3 accuracy was `r round(mean(df_fb_gpt3_dv$mdl.accuracy), 2)`.
+
+```{r}
+
+df_fb_gpt3_dv %>%
+  summarize(accuracy=mean(mdl.accuracy), n=n(), .groups="drop")
+
+```
+
+Accuracy was higher in the True Belief than False Belief condition
+
+```{r}
+
+df_fb_gpt3_dv %>%
+  group_by(condition) %>%
+  summarize(accuracy=mean(mdl.accuracy), n=n(), .groups="drop")
+
+```
+
+## Pre-registered analysis 1: Does knowledge state predict GPT-3 Log-Odds?
+
+Adding knowledge state (`condition`) significantly improves the fit of a base model predicting GPT-3 log-odds.
+
+```{r}
+
+m.nlm.all_fe = lmer(data = df_fb_gpt3_dv,
+                  log_odds ~ condition + knowledge_cue +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+
+m.nlm.no_condition = lmer(data = df_fb_gpt3_dv,
+                  log_odds ~ knowledge_cue +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+anova(m.nlm.all_fe, m.nlm.no_condition)
+
+```
+
+This effect is found in both for both implicit and explicit knowledge cue subsets of the data.
+
+```{r}
+
+df_fb_gpt3_dv.implicit <- df_fb_gpt3_dv  %>% filter(knowledge_cue == "Implicit")
+
+m.nlm.all_fe.implicit = lmer(data = df_fb_gpt3_dv.implicit,
+                  log_odds ~ condition +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+
+m.nlm.no_condition.implicit = lmer(data = df_fb_gpt3_dv.implicit,
+                  log_odds ~
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+anova(m.nlm.all_fe.implicit, m.nlm.no_condition.implicit)
+
+```
+
+
+```{r}
+
+df_fb_gpt3_dv.explicit <- df_fb_gpt3_dv  %>% filter(knowledge_cue == "Explicit")
+
+m.nlm.all_fe.explicit = lmer(data = df_fb_gpt3_dv.explicit,
+                  log_odds ~ condition +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+
+m.nlm.no_condition.explicit = lmer(data = df_fb_gpt3_dv.explicit,
+                  log_odds ~
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+anova(m.nlm.all_fe.explicit, m.nlm.no_condition.explicit)
+
+```
+
+## Pre-registered analysis 2: Interaction between knowledge state and knowledge cue
+
+The addition of an interaction between knowledge state and knowledge cue also improves model fit significantly.
+
+```{r}
+
+m.nlm.full = lmer(data = df_fb_gpt3_dv,
+                  log_odds ~ condition * knowledge_cue +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=lmerControl(optimizer="bobyqa"),
+                  REML = FALSE)
+
+anova(m.nlm.full, m.nlm.all_fe)
+
+```
+
+The coefficient for the interaction is positive (the negative effect of True Belief on Log-Odds is attenuated in the implicit condition).
+
+```{r}
+
+summary(m.nlm.full)
+
+```
+
+
+# Human Participant Analysis
+
+## Pre-registered analysis 1: Does knowledge state predict response?
+
+First, we ask whether `condition` (knowledge state) predicts response, above and beyond the other covariates *excluding* `log_odds` from GPT-3.
+
+
+### Descriptive statistics
+
+Descriptively, we can ask whether a higher proportion of people respond with the START location in the FB or TB condition.
+
+```{r}
+df_merged %>%
+  group_by(condition) %>%
+  summarise(prop_start = mean(is_start),
+            count = n(),
+            .groups="drop")
+```
+
+```{r}
+df_merged %>%
+  summarise(accuracy = mean(accuracy),
+            count = n())
+```
+
+
+### Analysis
+
+```{r}
+model_all_but_lo = glmer(data = df_merged,
+                  is_start ~ condition + knowledge_cue+
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+model_all_but_lo_and_condition = glmer(data = df_merged,
+                  is_start ~ knowledge_cue +
+                    recent_mention +  
+                    first_mention +
+                    (1 + condition | item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+summary(model_all_but_lo)
+anova(model_all_but_lo, model_all_but_lo_and_condition)
+```
+
+## Pre-registered analysis 2: Does condition predict response above log-odds?
+
+### Analysis
+
+```{r}
+model_all_fe = glmer(data = df_merged,
+                  is_start ~ condition + knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+
+model_no_condition = glmer(data = df_merged,
+                  is_start ~ knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                     (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+summary(model_all_fe)
+anova(model_all_fe, model_no_condition)
+
+```
+
+
+
+# Visualization
+
+## Visualizing Log-odds
+
+```{r}
+## Density version
+df_fb_gpt3_dv %>%
+  ggplot(aes(x = log_odds,
+             y = knowledge_cue,
+             fill = condition)) +
+  geom_density_ridges2(aes(height = ..density..), 
+                       color=gray(0.25), 
+                       alpha = 0.5, 
+                       scale=0.85, 
+                       size=.9, 
+                       stat="density") +
+  labs(x = "GPT-3 Log-odds (start vs. end)",
+       y = "Knowledge Cue",
+       fill = "Knowledge State") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  theme_minimal() +
+  # scale_fill_viridis_d() +
+  theme(
+    legend.position = "bottom"
+  ) + 
+  theme(axis.title = element_text(size=rel(1.5)),
+        axis.text = element_text(size = rel(1.5)),
+        legend.text = element_text(size = rel(1.5)),
+        legend.title = element_text(size = rel(1.5)),
+        strip.text.x = element_text(size = rel(1.5)))
+
+ggsave("../Figures/log_odds.pdf", dpi = 300)
+```
+
+
+## Comparing GPT-3 to Human performance
+
+```{r}
+
+df_merged_summ = df_merged %>%
+  mutate(p_start_cond = 1/(1 + exp(-log_odds))) %>%
+  group_by(item_id, condition, knowledge_cue, recent_mention, first_mention) %>%
+  summarise(prop_start = mean(is_start),
+            lo = mean(log_odds),
+            accuracy = mean(is_correct),
+            p_start_gpt3 = mean(p_start_cond),
+            .groups="drop")
+
+
+```
+
+```{r}
+
+
+df_merged_summ %>%
+  mutate("GPT-3\n(Log-odds)" = lo,
+         "Human\n(Proportion)" = prop_start) %>%
+  pivot_longer(cols = c("Human\n(Proportion)", "GPT-3\n(Log-odds)"),
+               names_to = "metric",
+               values_to = "value") %>%
+  ggplot(aes(x = value,
+             fill = condition)) +
+  geom_density(alpha = .5, color="#666666") +
+  theme_minimal() +
+  facet_wrap(. ~ metric,
+             scales = "free",
+             ncol=1,
+             strip.position = "left") + 
+  theme(
+    legend.position = "bottom"
+  ) + 
+  scale_y_continuous(position="right") + 
+  labs(
+    fill = "Knowledge State",
+    x = "Bias toward Start location",
+    y = ""
+  )
+
+ggsave("../Figures/comparison_pstart.pdf", dpi = 300)
+
+```
+
+

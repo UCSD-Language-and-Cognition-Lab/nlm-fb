@@ -1,0 +1,902 @@
+---
+title: "NLM-FB Exploratory Analysis"
+author: "Sean Trott, Cameron Jones, James Michaelov, Tyler Chang, Benjamin Bergen"
+date: "25/02/2022"
+output:
+  html_document: 
+    toc: yes
+    toc_float: yes
+    theme: flatly
+    highlight: kate
+    code_folding: show
+    number_sections: yes
+    df_print: kable
+---
+
+# Preprocess
+
+```{r setup}
+library(tidyverse)
+library(knitr)
+library(lme4)
+library(MuMIn)
+library(lmerTest)
+source("utils.R")
+source("preprocess.R")
+
+
+```
+
+
+# Exclusions
+
+Mturk slightly oversampled to 1161. Only 13 ppts indicated they are not native english speakers.
+
+```{r}
+
+summarise.exclusions(ppts.all)
+
+```
+
+
+
+
+# Attention Checks
+
+## By participant
+
+57% of ppts passed both attention checks.
+
+```{r}
+
+attention %>%
+  group_by(participant_id) %>%
+  summarize(accuracy = mean(accuracy), .groups="drop") %>%
+  group_by(accuracy) %>%
+  summarize(
+    n = n(),
+    prop = round(n / nrow(attention), 2)
+  )
+
+```
+
+```{r}
+
+attention %>%
+  filter(is_correct == F) %>%
+  group_by(is_start_or_end) %>%
+  summarize(
+    n = n(),
+    prop = round(n / nrow(attention %>% filter(is_correct == F)), 2)
+  )
+  
+
+```
+
+## By item
+
+Items accuracy looks normal.
+
+```{r}
+
+attention %>%
+  mutate(
+    item_question_id = paste0(item, "_", question_id)
+  ) %>%
+  group_by(item_question_id) %>%
+  summarize(accuracy = mean(accuracy), .groups="drop") %>%
+  ggplot(aes(x = accuracy, y=reorder(item_question_id, -accuracy))) + 
+  stat_summary(fun="mean", geom="bar")
+
+```
+
+
+# Critical Trials
+
+## Distribution of trials after exclusions
+
+The distribution by item looks fairly normal but does lead to some extreme cases (e.g. no cases for top left, TB, 12).
+
+```{r}
+
+critical %>%
+  filter(excluded.attention == F) %>%
+  ggplot(aes(x = factor(item), fill=condition)) + 
+  geom_bar(stat="count", position = "dodge") +
+  facet_grid(cols=vars(first_mention), rows=vars(recent_mention),
+             labeller = "label_both")
+
+```
+
+
+```{r}
+
+critical %>%
+  filter(excluded.attention == F) %>%
+  ggplot(aes(x = knowledge_cue, fill=condition)) + 
+  geom_bar(stat="count", position = "dodge") +
+  facet_grid(cols=vars(first_mention), rows=vars(recent_mention),
+             labeller = "label_both")
+
+```
+
+## Overall accuracy
+
+Accuracy is 80% for ppts who passed the attention checks (and 25% for those who didn't).
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = excluded.attention, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar") + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+```{r}
+
+critical %>%
+  group_by(excluded.attention) %>%
+  summarize(accuracy=mean(accuracy), n=n(), .groups="drop")
+
+```
+
+```{r}
+
+critical %>%
+  filter(excluded.attention == F) %>%
+  ggplot(aes(x = condition, y = accuracy, fill=condition)) + 
+  stat_summary(fun="mean", geom="bar")
+
+```
+
+```{r}
+
+critical %>%
+  filter(excluded.attention == F,
+         is_start | is_end) %>%
+  group_by(condition) %>%
+  summarize(start=mean(is_start), n=n(), .groups="drop")
+
+```
+
+
+```{r}
+
+critical <- critical %>%
+  mutate(
+    accuracy = ifelse(is_correct, 1, 0)
+  )
+
+```
+
+## By item
+
+None of the items look particularly easy/hard.
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = reorder(item, -accuracy), y = accuracy, color=excluded.attention)) + 
+  stat_summary(fun="mean", geom="point") +
+  facet_grid(cols=vars(excluded.attention), labeller=label_both) + 
+  scale_color_manual(values=c("#009933", "#FF0000"))
+
+```
+
+The incorrect answers from retained ppts mostly look like genuine mistakes.
+
+```{r}
+
+critical %>%
+  filter(is_correct == F,
+         excluded.attention == FALSE) %>%
+  select(participant_id, item_id, correct_answer, response, is_correct) %>%
+  arrange(item_id)
+
+```
+
+
+
+## By condition
+
+First mention shows a noticeable effect. Effects of other vars look small.
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = condition, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = knowledge_cue, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = first_mention, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+
+```{r}
+
+critical %>%
+  mutate(start = ifelse(is_start, 1, 0)) %>%
+  ggplot(aes(x = first_mention, y = start, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = recent_mention, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+```{r}
+
+critical %>%
+  mutate(start = ifelse(is_start, 1, 0)) %>%
+  ggplot(aes(x = recent_mention, y = start, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+# RT x Accuracy
+
+## Attention x Passage Reading Time
+
+```{r}
+
+attention %>%
+  group_by(participant_id) %>%
+  summarize(
+    passage_reading_time = mean(passage_reading_time),
+    accuracy = mean(accuracy),
+    .groups="drop"
+  ) %>%
+  ggplot(aes(x = passage_reading_time, y = accuracy)) + 
+  # geom_point() +
+  stat_summary_bin(fun.data = mean_cl_boot, geom="pointrange", binwidth = 0.1) +
+  scale_x_log10() +
+  geom_smooth(method="lm", formula="y~x") + 
+  labs(y = "attention_accuracy")
+
+```
+
+## Attention x Reaction Time
+
+```{r}
+
+attention %>%
+  ggplot(aes(x = reaction_time, y = accuracy)) + 
+  # geom_point() +
+  stat_summary_bin(fun.data = mean_cl_boot, geom="pointrange", binwidth = 0.1) +
+  scale_x_log10() +
+  geom_smooth(method="lm", formula="y~x") + 
+  labs(y = "Attention accuracy")
+
+```
+
+## Critical x Passage Reading Time
+
+```{r}
+
+critical %>%
+  group_by(participant_id, excluded.attention) %>%
+  summarize(
+    passage_reading_time = mean(passage_reading_time),
+    accuracy = mean(accuracy),
+    .groups="drop"
+  ) %>%
+  ggplot(aes(x = passage_reading_time, y = accuracy, color=excluded.attention)) + 
+  # geom_point() +
+  stat_summary_bin(fun.data = mean_cl_boot, geom="pointrange", binwidth = 0.2) +
+  scale_x_log10() +
+  geom_smooth(method="lm", formula="y~x", se=F) + 
+  labs(y = "critical accuracy") +
+  scale_color_manual(values=c("#009933", "#FF0000"))
+
+```
+
+## Critical x Reaction Time
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = reaction_time, y = accuracy, color=excluded.attention)) + 
+  # geom_point() +
+  stat_summary_bin(fun.data = mean_cl_boot, geom="pointrange", binwidth = 0.2) +
+  scale_x_log10() +
+  geom_smooth(method="lm", formula="y~x", se=F) + 
+  labs(y = "critical accuracy") +
+  scale_color_manual(values=c("#009933", "#FF0000"))
+
+```
+
+# GPT-3 Accuracy
+
+Overall GPT-3 accuracy was `r round(mean(df_fb_gpt3_dv$mdl.accuracy), 2)`.
+
+```{r}
+
+df_fb_gpt3_dv %>%
+  ggplot(aes(x = condition, y = mdl.accuracy, fill=condition)) + 
+  stat_summary(fun="mean", geom="bar")
+  
+```
+
+```{r}
+
+df_fb_gpt3_dv %>%
+  group_by(condition) %>%
+  summarize(accuracy=mean(mdl.accuracy), n=n(), .groups="drop")
+
+```
+
+
+# Pre-registered analysis 1: Does condition predict response?
+
+First, we ask whether `condition` predicts response, above and beyond the other covariates *excluding* `log_odds` from GPT-3.
+
+## Descriptive statistics
+
+Descriptively, we can ask whether a higher proportion of people respond with the START location in the FB or TB condition.
+
+```{r}
+df_merged %>%
+  group_by(condition, knowledge_cue) %>%
+  summarise(prop_start = mean(is_start),
+            count = n(),
+            .groups="drop")
+```
+
+## Visualization
+
+```{r}
+df_merged %>%
+  ggplot(aes(x = condition,
+             y = is_start_numeric,
+             color = condition)) +
+  # geom_jitter(alpha = .1) +
+  stat_summary (fun = function(x){mean(x)},
+                fun.min = function(x){mean(x) - 2*sd(x)/sqrt(length(x))},
+                fun.max = function(x){mean(x) + 2*sd(x)/sqrt(length(x))},
+                geom= 'pointrange', 
+                position=position_dodge(width=0.95)) +
+  labs(x = "Condition",
+       y = "P(START)") +
+  scale_color_viridis_d() +
+  theme_bw() +
+  facet_wrap(~knowledge_cue,
+             nrow = 2)
+```
+
+## Analysis
+
+```{r}
+model_all_but_lo = glmer(
+                  is_start_numeric ~ condition + knowledge_cue+
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  data = df_merged,
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+model_all_but_lo_and_condition  = glmer(
+                  is_start_numeric ~ knowledge_cue+
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition | item),
+                  data = df_merged,
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+anova(model_all_but_lo, model_all_but_lo_and_condition)
+
+```
+
+# Pre-registered analysis 2: Does condition predict response above log-odds?
+
+## Analysis
+
+There is a significant effect of condition when accounting for log-odds.
+
+```{r}
+
+model_all_fe = glmer(data = df_merged,
+                  is_start_numeric ~ condition + knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+
+model_no_condition = glmer(data = df_merged,
+                  is_start_numeric ~ knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                     (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+anova(model_all_fe, model_no_condition)
+
+```
+
+The full model shows a significant effect only for condition.
+
+```{r}
+
+summary(model_all_fe)
+
+```
+
+The effect of LO approaches significance in the no_condition model.
+
+```{r}
+
+summary(model_no_condition)
+
+```
+
+
+## Visualization
+
+We can visualize this in a couple ways. First, we can look at the residuals of a model without `condition`, and ask they're correlated with `condition`.
+
+```{r}
+df_merged$resid = residuals(model_no_condition)
+df_merged %>%
+  ggplot(aes(x = condition,
+             y = resid,
+             color = condition)) +
+  geom_jitter(alpha = .3) +
+  stat_summary (fun = function(x){mean(x)},
+                fun.min = function(x){mean(x) - 2*sd(x)/sqrt(length(x))},
+                fun.max = function(x){mean(x) + 2*sd(x)/sqrt(length(x))},
+                geom= 'pointrange', 
+                position=position_dodge(width=0.95)) +
+  labs(x = "Condition",
+       y = "Residuals") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  scale_color_viridis_d() +
+  theme_bw()
+
+```
+
+Residuals are bimodal for all items in TB, and almost all items in FB.
+
+```{r}
+df_merged$resid = residuals(model_no_condition)
+df_merged %>%
+  ggplot(aes(x = condition,
+             y = resid,
+             color = condition)) +
+  geom_jitter(alpha = .3) +
+  stat_summary (fun = function(x){mean(x)},
+                fun.min = function(x){mean(x) - 2*sd(x)/sqrt(length(x))},
+                fun.max = function(x){mean(x) + 2*sd(x)/sqrt(length(x))},
+                geom= 'pointrange', 
+                position=position_dodge(width=0.95)) +
+  labs(x = "Condition",
+       y = "Residuals") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  scale_color_viridis_d() +
+  theme_bw()  + 
+  # facet_grid(rows=vars(knowledge_cue), cols=vars(first_mention)) + 
+  facet_wrap(facets=vars(item))
+```
+
+
+Residuals area also bimodal in all intersections of first mention, recent mention, and knowledge cue, although seems to be less bimodal within false belief for kc:implicit, first_mention:end, and recent_mention:start.
+
+```{r}
+df_merged$resid = residuals(model_no_condition)
+df_merged %>%
+  ggplot(aes(x = condition,
+             y = resid,
+             color = knowledge_cue)) +
+  geom_jitter(alpha = .5) +
+  stat_summary (fun = function(x){mean(x)},
+                fun.min = function(x){mean(x) - 2*sd(x)/sqrt(length(x))},
+                fun.max = function(x){mean(x) + 2*sd(x)/sqrt(length(x))},
+                geom= 'pointrange', 
+                position=position_dodge(width=0.95)) +
+  labs(x = "Condition",
+       y = "Residuals") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  # scale_color_viridis_d() +
+  theme_bw()  + 
+  facet_grid(rows=vars(recent_mention), cols=vars(first_mention), labeller=label_both)
+  # facet_wrap(facets=vars(item))
+```
+
+
+Another approach is to *bin* log-odds, and look at whether the probability of choosing the START location changes as a function of both binned log-odds and condition.
+
+```{r}
+
+df_merged %>%
+  mutate(binned_lo = ntile(log_odds, n = 10)) %>%
+  ggplot(aes(x = binned_lo,
+             y = is_start_numeric,
+             color = condition)) +
+  stat_summary (fun = function(x){mean(x)},
+                fun.min = function(x){mean(x) - 2*sd(x)/sqrt(length(x))},
+                fun.max = function(x){mean(x) + 2*sd(x)/sqrt(length(x))},
+                geom= 'pointrange', 
+                position=position_dodge(width=0.95)) +
+  geom_smooth() +
+  labs(x = "Binned Log-odds",
+       y = "Residuals",
+       color = "Condition") +
+  scale_color_viridis_d() +
+  theme_bw() 
+
+```
+
+# LO vs Base
+
+## Analysis
+
+```{r}
+
+
+model_no_condition = glmer(data = df_merged,
+                  is_start_numeric ~ knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                     (1 | item),
+                  # control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+model_all_but_lo_and_condition  = glmer(
+                  is_start_numeric ~ knowledge_cue+
+                    recent_mention + 
+                    first_mention +
+                    (1 | item),
+                  data = df_merged,
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+anova(model_no_condition, model_all_but_lo_and_condition)
+
+```
+
+# Ixn
+
+```{r}
+
+
+model_all_fe_ixn = glmer(data = df_merged,
+                  is_start_numeric ~ condition * knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition| item),
+                  # control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+model_all_fe = glmer(data = df_merged,
+                  is_start_numeric ~ condition + knowledge_cue + log_odds +
+                    recent_mention + 
+                    first_mention +
+                    (1 + condition| item),
+                  # control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+anova(model_all_fe_ixn, model_all_fe)
+
+```
+
+```{r}
+
+summary(model_all_fe_ixn)
+
+```
+
+# Demographics
+
+```{r}
+
+ppts.all %>%
+  group_by(dyslexia, adhd, asd) %>%
+  summarize(n = n(),
+            prop = round(n / nrow(ppts.all), 2),
+            .groups="drop")
+```
+
+```{r}
+
+ppts.all %>%
+  group_by(dyslexia, adhd, asd) %>%
+  summarize(n = n(),
+            prop = round(n / nrow(ppts.all), 2),
+            .groups="drop") %>%
+  ggplot(aes(x = dyslexia, y = n, fill=adhd)) + 
+  geom_bar(stat="identity", position="dodge") + 
+  facet_grid(cols=vars(asd), labeller="label_both") + 
+  theme_minimal()
+
+```
+
+## Accuracy by Neurological Condition
+
+```{r}
+
+
+df_merged <- df_merged %>%
+  merge(ppts.all, by.y="id", by.x="participant_id", all.y = F)
+
+df_merged %>%
+  group_by(dyslexia, adhd, asd) %>%
+  summarize(n = n(),
+            correct = sum(accuracy),
+            accuracy = mean(accuracy),
+            .groups="drop")
+
+```
+
+Dyslexic participants perform worse.
+
+```{r}
+
+critical <- critical %>%
+  merge(ppts.all %>% select(participant_id, dyslexia, adhd, asd, age, gender))
+
+critical %>%
+  ggplot(aes(x = dyslexia, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+As do ppts with ADHD
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = adhd, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+And ASD
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = asd, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+Men and women perform similarly.
+
+```{r}
+
+critical %>%
+  ggplot(aes(x = gender, y = accuracy, fill=excluded.attention)) + 
+  stat_summary(fun="mean", geom="bar", position="dodge", alpha=0.8) + 
+  stat_summary(fun.data=mean_cl_boot, geom="errorbar", position=position_dodge(0.9), width=0.2) + 
+  scale_fill_manual(values=c("#009933", "#FF0000"))
+
+```
+
+Ppts get better with age.
+
+```{r}
+
+
+critical %>%
+  # group_by(participant_id, excluded.attention) %>%
+  # summarize(
+  #   age = mean(age),
+  #   accuracy = mean(accuracy),
+  #   .groups="drop"
+  # ) %>%
+  ggplot(aes(x = age, y = accuracy, color=excluded.attention)) + 
+  # geom_point() +
+  stat_summary_bin(fun.data = mean_cl_boot, geom="pointrange", binwidth = 0.05) +
+  scale_x_log10() +
+  geom_smooth(method="lm", formula="y~x", se=F) + 
+  labs(y = "critical accuracy") +
+  scale_color_manual(values=c("#009933", "#FF0000"))
+
+```
+
+## Linear Models
+
+## ASD
+
+Negative interaction of LO and ASD (b=-0.48, p=0.13)
+
+```{r}
+
+model.asd = glmer(data = df_merged,
+                  is_start_numeric ~ condition + knowledge_cue + log_odds +
+                    recent_mention + first_mention + asd + asd:log_odds +
+                    (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+summary(model.asd)
+
+```
+
+Significant negative interaction of LO and Dyslexia (b=-0.69, p=0.03)
+
+```{r}
+
+model.dyslexia = glmer(data = df_merged,
+                  is_start_numeric ~ condition + knowledge_cue + log_odds +
+                    recent_mention + first_mention + dyslexia + dyslexia:log_odds +
+                    (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+summary(model.dyslexia)
+
+```
+
+NS positive interaction of LO and ADHD (b=0.42, p=0.2)
+
+```{r}
+
+model.adhd = glmer(data = df_merged,
+                  is_start_numeric ~ condition + knowledge_cue + log_odds +
+                    recent_mention + first_mention + adhd + adhd:log_odds +
+                    (1 + condition| item),
+                  control=glmerControl(optimizer="bobyqa"),
+                  family = binomial())
+
+summary(model.adhd)
+
+```
+
+
+
+
+# Visualizations
+=======
+# Exploratory Visualizations
+
+```{r}
+
+df_merged_summ = df_merged %>%
+  mutate(p_start_cond = 1/(1 + exp(-log_odds))) %>%
+  group_by(item_id, condition, knowledge_cue, recent_mention, first_mention) %>%
+  summarise(prop_start = mean(is_start),
+            lo = mean(log_odds),
+            accuracy = mean(is_correct),
+            p_start_gpt3 = mean(p_start_cond),
+            .groups="drop")
+
+```
+
+## Density: LO vs P(Start)
+
+```{r}
+
+df_merged_summ %>%
+  mutate("GPT-3\n(Proportion)" = p_start_gpt3,
+         "Human\n(Proportion)" = prop_start) %>%
+  pivot_longer(cols = c("Human\n(Proportion)", "GPT-3\n(Proportion)"),
+               names_to = "metric",
+               values_to = "value") %>%
+  ggplot(aes(x = value,
+             fill = condition)) +
+  geom_density(alpha = .5, color="#666666") +
+  theme_minimal() +
+  facet_wrap(. ~ metric,
+             # scales = "free",
+             ncol=1,
+             strip.position = "left") + 
+  geom_vline(xintercept = .5, linetype = "dotted") +
+  theme(
+    legend.position = "bottom"
+  ) + 
+  scale_y_continuous(position="right") + 
+  labs(
+    fill = "Knowledge State",
+    x = "P(Start)",
+    y = "Density"
+  ) +
+  theme(axis.title = element_text(size=rel(2)),
+        axis.text = element_text(size = rel(2)),
+        legend.text = element_text(size = rel(2)),
+        legend.title = element_text(size = rel(2)),
+        strip.text.y = element_text(size = rel(2)))
+
+```
+
+## Accuracy vs LO-correct
+
+```{r}
+
+df_merged_summ %>%
+  mutate(
+    lo.correct = case_when(
+      condition == "False Belief" ~ lo,
+      T ~ -1 * lo,
+    )
+  ) %>%
+  ggplot(aes(x = lo.correct, y = accuracy, color=condition, fill=condition)) + 
+  geom_point(position=position_jitter(height=0.01), alpha=0.75) + 
+  geom_smooth(method="lm", formula="y~x", alpha=0.15) + 
+  theme_minimal() +
+  labs(
+    y = "Human Accuracy",
+    x = "GPT-3 Log-odds Ratio (Correct - Incorrect)",
+    fill = "Knowledge State",
+    color = "Knowledge State"
+  ) + 
+  theme(
+    legend.position = "top"
+  )
+
+```
+
+## R Squared
+
+```{r}
+
+r2 <- c(
+r.squaredGLMM(model_all_but_lo_and_condition)[1],
+r.squaredGLMM(model_no_condition)[1],
+r.squaredGLMM(model_all_but_lo)[1],
+r.squaredGLMM(model_all_fe)[1])
+
+model <- c(
+  "Base",
+  "Base + GPT-3",
+  "Base + Condition",
+  "Base + GPT-3 + Condition"
+)
+
+df.r2 <- data.frame(model, r2)
+
+df.r2 %>%
+  ggplot(aes(x = r2, y = reorder(model, -r2))) + 
+  geom_bar(stat="identity", fill = "#69c8ff") + 
+  theme_minimal() + 
+  labs(
+    x = bquote("Marginal"~R^2~""),
+    y = "Predictors"
+  )
+  
+```
+
+
