@@ -10,7 +10,7 @@ The code to elicit predictions from GPT-3 for each stimulus is contained in `/sr
 
 ## Behavioral Experiment
 
-The experiment code is contained in `nlm_fb_expt/` and uses the python Django framework. In order to run the experiment you will need to install [Django](https://www.djangoproject.com/), include `nlm_fb.nlm_fb_expt` in INSTALLED_APPS,
+The experiment code is contained in `nlm_fb_expt/` and uses the python Django framework. In order to run the experiment you will need to install [Django](https://www.djangoproject.com/), include `nlm_fb.nlm_fb_expt` in `INSTALLED_APPS`,
 and include `nlm_fb.nlm_fb_expt.urls` in the project's `urlpatterns`.
 
 ## Stastical Analysis
