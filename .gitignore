@@ -3,6 +3,7 @@ __pycache__
 *.json
 */__pycache__
 secrets.py
+my_secrets.py
 .Rproj.user
 *.RData
 *.Rhistory
@@ -12,3 +13,4 @@ data/raw/
 data/mturk/
 todo.txt
 scripts/
+gpt_key

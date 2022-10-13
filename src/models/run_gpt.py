@@ -20,17 +20,16 @@ openai.api_key = api_key # api_key
 
 def log_odds_gpt3(experimental_sentence,start, end, word_idx, model="ada"): 
     """Get log_odds of start/end word in sentence."""
-    v_start = experimental_sentence.replace("[MASK]", start)
-    v_end = experimental_sentence.replace("[MASK]", end)
+    v_start = experimental_sentence.replace("[MASK].", start)
+    v_end = experimental_sentence.replace("[MASK].", end)
     start_output = openai.Completion.create(
         engine = model,
         prompt = v_start,
-        max_tokens = 1,
-        temperature = 1,
-        top_p = 1,
+        max_tokens = 0,
+        temperature = 0,
         n = 1,
         stream = False,
-        logprobs = 1,
+        logprobs = 0,
         stop = "\n",
         echo = True
         )
@@ -38,20 +37,19 @@ def log_odds_gpt3(experimental_sentence,start, end, word_idx, model="ada"):
     end_output = openai.Completion.create(
         engine = model,
         prompt = v_end,
-        max_tokens = 1,
-        temperature = 1,
-        top_p = 1,
+        max_tokens = 0,
+        temperature = 0,
         n = 1,
         stream = False,
-        logprobs = 1,
+        logprobs = 0,
         stop = "\n",
         echo = True
         )
 
     ### For cupboard and toolbox, take product of tool + box and cup + board.
     if start in ['cupboard', 'toolbox']:
-        start_logprobs = start_output.to_dict()['choices'][0].to_dict()['logprobs']["token_logprobs"][word_idx-1:word_idx+1]
-        start_target_words = start_output.to_dict()['choices'][0].to_dict()['logprobs']["tokens"][word_idx-1:word_idx+1]
+        start_logprobs = start_output.to_dict()['choices'][0].to_dict()['logprobs']["token_logprobs"][word_idx-1:]
+        start_target_words = start_output.to_dict()['choices'][0].to_dict()['logprobs']["tokens"][word_idx-1:]
 
         start_target_word = ''.join(start_target_words).replace(" ", "")
         start_logprob = sum(start_logprobs)
@@ -67,12 +65,35 @@ def log_odds_gpt3(experimental_sentence,start, end, word_idx, model="ada"):
     # ratio
     log_odds = start_logprob - end_logprob
 
+    lp_pred = start_target_word if log_odds > 0 else end_target_word 
+
     return {'log_odds': log_odds,
             'token_c1': start_target_word,
             'end_logprob': end_logprob,
             'start_logprob': start_logprob,
             'passage': experimental_sentence,
-            'token_c2': end_target_word}
+            'token_c2': end_target_word,
+            "lp_pred": lp_pred}
+
+
+def pred_tokens(prompt, n=1, model="ada"): 
+    """Get log_odds of start/end word in sentence."""
+    prompt = prompt.replace(" [MASK].", "")
+
+    output = openai.Completion.create(
+        engine = model,
+        prompt = prompt,
+        max_tokens = n,
+        temperature = 0,
+        n = 1,
+        logprobs = 1,
+        echo = False
+        )
+
+    tokens = output.to_dict()['choices'][0].to_dict()["logprobs"]["tokens"]
+    token_logprobs = output.to_dict()['choices'][0].to_dict()["logprobs"]["token_logprobs"]
+
+    return (tokens, token_logprobs)
 
 
 def main(filename, c1, c2, model='ada'):
@@ -108,7 +129,16 @@ def main(filename, c1, c2, model='ada'):
             # Get substitutions for masked word
             candidates = [row[c1], row[c2]]
             # Get log odds for these words
-            info = log_odds_gpt3(text, row[c1], row[c2], -3, model=model)
+            info = log_odds_gpt3(text, row[c1], row[c2], -1, model=model)
+
+            # Get predictions from model
+            tokens, token_logprobs = pred_tokens(text, n=2, model=model)
+            # Add to info dict
+            info["pred_t1"] = tokens[0].strip()
+            info["pred_t2"] = tokens[1].strip()
+            info["pred_lp1"] = token_logprobs[0]
+            info["pred_lp2"] = token_logprobs[1]
+
             # Add ratio to log-odds list
             results.append(info)
 

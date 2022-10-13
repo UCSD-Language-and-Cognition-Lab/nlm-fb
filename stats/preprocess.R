@@ -7,7 +7,7 @@ date.end <- "2022-04-08 00:00:00"
 ppts.raw <- read.csv("../data/clean/nlm_fb_participants_clean.csv")
 critical <- read.csv("../data/clean/nlm_fb_critical_clean.csv")
 attention <- read.csv("../data/clean/nlm_fb_attention_clean.csv")
-df_fb_gpt3_dv = read.csv("../data/clean/fb_gpt3-davinci_surprisals.csv")
+df_fb_gpt3_dv = read.csv("../data/processed/fb_gpt3-text-davinci-002_surprisals_probs.csv")
 
 # Preprocess data
 ppts.all <- preprocess.ppts(
