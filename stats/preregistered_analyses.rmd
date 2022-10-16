@@ -267,7 +267,7 @@ df_fb_gpt3_dv %>%
         legend.title = element_text(size = rel(1.5)),
         strip.text.x = element_text(size = rel(1.5)))
 
-ggsave("../Figures/log_odds.pdf", dpi = 300)
+ggsave("../Figures/log_odds_9.pdf", dpi = 300, width=9, height=5)
 ```
 
 
@@ -314,7 +314,43 @@ df_merged_summ %>%
     y = ""
   )
 
-ggsave("../Figures/comparison_pstart.pdf", dpi = 300)
+```
+
+
+```{r}
+
+
+df_merged_summ %>%
+  mutate("GPT-3" = p_start_gpt3,
+         "Human" = prop_start) %>%
+  pivot_longer(cols = c("Human", "GPT-3"),
+               names_to = "metric",
+               values_to = "value") %>%
+  ggplot(aes(x = value,
+             fill = condition)) +
+  geom_density(alpha = .5, color="#666666") +
+  theme_minimal() +
+  facet_wrap(. ~ metric,
+             # scales = "free",
+             ncol=1,
+             strip.position = "left") + 
+  geom_vline(xintercept = .5, linetype = "dotted") +
+  theme(
+    legend.position = "bottom"
+  ) + 
+  scale_y_continuous(position="right") + 
+  labs(
+    fill = "Knowledge State",
+    x = "P(Start)",
+    y = ""
+  ) +
+  theme(axis.title = element_text(size=rel(1.5)),
+        axis.text = element_text(size = rel(1.5)),
+        legend.text = element_text(size = rel(1.5)),
+        legend.title = element_text(size = rel(1.5)),
+        strip.text.y = element_text(size = rel(1.5)))
+
+ggsave("../Figures/comparison_pstart.pdf", dpi = 300, width=7, height=5)
 
 ```
 

@@ -904,17 +904,50 @@ df.r2 %>%
 
 ## Model scale plot
 
+```{r}
+
+
+get_acc <- function(model) {
+  fname <- paste0("../data/processed/fb_gpt3-", model, "_surprisals_probs.csv")
+  df <- read.csv(fname)
+  
+  df %>%
+    mutate(
+      # Get two token predicted locations
+      tg_token = case_when(
+        paste0(pred_t1,pred_t2) %in% c("cupboard", "toolbox") ~ paste0(pred_t1,pred_t2),
+        TRUE ~ pred_t1
+      ),
+      mdl.accuracy = tg_token == critical_a
+    ) %>%
+    pull(mdl.accuracy) %>% mean()
+}
+
+
+models <- c("ada", "text-ada-001", "babbage", "text-babbage-001",
+            "curie", "text-curie-001", "davinci", "text-davinci-002")
+
+params <- c(0.35, 0.35, 1.3, 1.3, 6.7, 6.7, 175, 175) * 1e9
+m.series <- rep(c("base", "text"), 4)
+m.type <- rep(c("ada", "babbage", "curie", "davinci"), each=2)
+
+accuracy <- c()
+for (mdl in models) {
+  accuracy <- c(accuracy, get_acc(mdl))
+}
+
+acc.df <- data.frame(models, accuracy, params, m.series, m.type)
+
+acc.df
+```
+
 
 ```{r}
 
-tga <- read.csv("token_generation_accuracy.csv")
-
-tga
-
 ## Density version
 
-tga %>%
-  ggplot(aes(x = reorder(Model, Accuracy), y=Accuracy, fill=Model)) + 
+acc.df %>%
+  ggplot(aes(x = reorder(models, accuracy), y=accuracy, fill=models)) + 
   geom_bar(stat="identity") + 
   labs(x = "Model",
        y = "Accuracy",
@@ -935,8 +968,8 @@ tga %>%
 
 ```{r}
 
-tga %>%
-  ggplot(aes(y = reorder(Model, Accuracy), x=Accuracy, fill=Model)) + 
+acc.df %>%
+  ggplot(aes(y = reorder(models, accuracy), x=accuracy, fill=models)) + 
   geom_bar(stat="identity") + 
   labs(x = "Model",
        y = "Accuracy",
@@ -956,5 +989,48 @@ tga %>%
         strip.text.x = element_text(size = rel(1.5)))
 
 ggsave("../Figures/textgen-model-acc.pdf", dpi = 300, width=7, height=5)
+
+```
+
+```{r}
+
+library(ggrepel)
+library(RColorBrewer)
+
+acc.df %>%
+  ggplot(aes(x = params, y=accuracy, color=m.type, label=models, shape=m.series)) + 
+  geom_point(size=4, stroke=1.2, alpha=1) +
+  
+  geom_text_repel(point.size = 4, force_pull=1,
+                  box.padding = 0.4,
+                  label.padding = 1,
+                  point.padding = 1,
+                  direction="both", size=5,
+                  max.time=10, max.iter=1e7) +
+  
+  scale_x_log10(breaks = c(1e9, 1e10, 1e11), labels = c(expression(~10^9), expression(~10^10), expression(~10^11))) +
+  # scale_color_viridis_d(begin=0, end=0.8) +
+  # scale_color_brewer(palette="Dark2") +
+  scale_shape(solid=F) +
+  geom_text(aes(x = c(75e7), y=c(0.88), label=c("Human Baseline")), color="red", size=5, fontface="plain") +
+  labs(x = bquote("Parameters"),
+       y = "Accuracy") +
+  theme_minimal() +
+  
+  geom_hline(yintercept=0.83, linetype="dashed", color="#ff0000") +
+  coord_cartesian(ylim=c(0,1)) +
+  theme(
+    legend.position = "none"
+  ) + 
+  theme(axis.title = element_text(size=rel(1.5)),
+        axis.text.x = element_text(size = rel(1.5)),
+        axis.text.y = element_text(size = rel(1.5)),
+        legend.text = element_text(size = rel(1.5)),
+        legend.title = element_text(size = rel(1.5)),
+        strip.text.x = element_text(size = rel(1.5)))
+
+
+ggsave("../Figures/model-params-acc.pdf", dpi = 300, width=7, height=5)
+
 
 ```
